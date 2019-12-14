@@ -19,11 +19,11 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     //Maybe pass a struct to get everything and use polymo. for different impl. for each cloud service
     QString ClientIdentifier;
     QString ClientSecret;
-    parseJsonSecret(ClientIdentifier, ClientSecret);
+    //parseJsonSecret(ClientIdentifier, ClientSecret);
 
-    m_cloudInterface = new CloudInterface_GoogleDrive(ClientIdentifier, ClientSecret, this);
+   // m_cloudInterface = new CloudInterface_GoogleDrive(ClientIdentifier, ClientSecret, this);
 
-    m_cloudInterface->Authorize();
+    //m_cloudInterface->Authorize();
     //Open window that can only be closed if Authentifiern emits OnSuccess() -> should close the window. BLOCK HERE with window.exec()??
 
 

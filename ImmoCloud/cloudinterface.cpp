@@ -9,8 +9,9 @@
 #include <QNetworkAccessManager>
 #include <QFileInfo>
 #include <QFile>
+#include <QEventLoop>
 
-CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth)
+CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth), m_isUploading(false)
 {
     m_networkManager = new QNetworkAccessManager(this);
 
@@ -112,7 +113,7 @@ void CloudInterface::TestUploadMultiPart()
 
 void CloudInterface::TestUploadResumable()
 {
-    UploadFile("C:\\Users\\Fabi\\OneDrive\\TODO.txt");
+    UploadFile("D:\\Downloads\\02. Alligatoah - Ein Problem Mit Alkohol.mp3");
 }
 
 
@@ -168,8 +169,6 @@ void CloudInterface_GoogleDrive::UploadFiles(QStringList files)
     foreach (auto path, files) {
         UploadFile(path);
     }
-
-
 }
 
 //TODO::private function, die eine liste aller cloud elemente abruft und im hauptfenster anzeit. <- soll am anfang aufgerufen werden und dann immer wenn änderungen passierten
@@ -192,9 +191,10 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath)
 
     //Create MetaData
     QJsonObject root;
-    root.insert("titel", fileInfo.fileName());
+    root.insert("title", fileInfo.fileName());
     QJsonDocument body(root);
     QByteArray data = body.toJson();//TODO: Meta funktioniert nicht -> immer untiteld
+    qDebug() << data.size() << QJsonDocument::fromJson(data).toJson() ;
 
     //Init Upload Session
     QNetworkRequest request;
@@ -203,6 +203,7 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath)
     request.setRawHeader("Content-Lenght", QByteArray::number(data.size()));
     request.setRawHeader("Content-Type", "application/json; charset=UTF-8");
     request.setRawHeader("X-Upload-Content-Type", GetContentTypeByExtension(fileInfo.suffix()).toUtf8());
+    request.setRawHeader("X-Upload-Content-Length", QByteArray::number(fileInfo.size()));
 
     m_networkReply = m_networkManager->post(request, data);
 
@@ -211,8 +212,43 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath)
 
 }
 
+//TODO: Test!!!! not testet jet
+void CloudInterface_GoogleDrive::UploadFile(QString filePath, uint startBit)
+{
+
+    QString path = filePath;
+    if(!m_authenticator->isGranted())
+        return;
+
+    QFileInfo fileInfo(filePath);
+
+    if(!fileInfo.exists())
+        return;
+
+    if(!m_networkManager)
+        m_networkManager = new QNetworkAccessManager(this);
+
+    QNetworkRequest request(m_currentUploadUrl);
+    request.setRawHeader("Content-Lenght", QByteArray::number(fileInfo.size()-startBit));
+    request.setRawHeader("Content-Range", QString("bytes " + QString::number(startBit) +"-"+ QString::number(fileInfo.size()-1)+"/*").toUtf8());
+    QFile file(filePath);
+    file.open(QIODevice::ReadOnly);
+    file.seek(startBit);
+    QByteArray restOfFile = file.read((fileInfo.size()-startBit));
+    file.close();
+
+    QNetworkReply* reply = m_networkManager->put(request, restOfFile);
+    m_networkManager->setParent(reply);
+
+    connect(reply, &QNetworkReply::finished, this, &CloudInterface_GoogleDrive::HandleUploadingReply);
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+
+}
+
 void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *reply)
 {
+    if(!m_networkManager)
+        m_networkManager = new QNetworkAccessManager();
 
     if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200)
     {
@@ -235,6 +271,8 @@ void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *r
     QString Location = QString::fromUtf8(reply->rawHeader("Location"));
     QString Cache_Control = QString::fromUtf8(reply->rawHeader("Cache-Control"));
     QString Date = QString::fromUtf8(reply->rawHeader("Date"));
+    m_currentUploadUrl = Location;
+
 
     disconnect(m_networkManager, &QNetworkAccessManager::finished, this, &CloudInterface_GoogleDrive::HandleCreateUploadSessionReply);
     m_networkReply->deleteLater();
@@ -264,13 +302,46 @@ void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *r
 
 void CloudInterface_GoogleDrive::HandleUploadingReply(QNetworkReply *reply)
 {
+    if(!m_networkManager)
+        m_networkManager = new QNetworkAccessManager();
 
     int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if(status != 200 && status != 201)
     {
-        //TODO: //if not resume or start again. Lieber switch case machen
+        if(status == 308)
+        {
+            //Request upload status
+            QNetworkAccessManager* nManager = new QNetworkAccessManager();
+            QNetworkRequest request(m_currentUploadUrl);
+            request.setRawHeader("Content-Length", "0");
+            request.setRawHeader("Content-Range", "bytes */*");
+            QNetworkReply* reply = nManager->put(request, QByteArray());
+            nManager->setParent(reply);
+            connect(reply, &QNetworkReply::finished, [&](){
+                if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 308)
+                {
+                    //Continue Uploading file
+                    QString range = QString::fromUtf8(reply->rawHeader("Range"));
+                    auto s1 = range.split("=");
+                    auto receivedBytes = s1[1].split("-");
+                    UploadFile(m_currentFile, receivedBytes[1].toUInt()+1);
+
+                }
+
+            });
+            connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+
+
+        }
+        else
+        {
+            //restart upload
+            UploadFile(m_currentFile);
+        }
+
     }
 
+    m_currentFile = "";
     qDebug() << "Status: " + QString::number(status);
     qDebug() << QJsonDocument::fromJson(reply->readAll());
 }
