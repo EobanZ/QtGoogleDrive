@@ -21,6 +21,7 @@ private slots:
     void on_pushButton_clicked();
 
 private:
+    void parseJsonSecret(QString& clientId, QString& clientSecret);
     void dragEnterEvent(QDragEnterEvent *e) override;
     void dropEvent(QDropEvent *e) override;
 

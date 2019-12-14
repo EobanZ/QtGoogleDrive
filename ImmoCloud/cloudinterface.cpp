@@ -19,40 +19,8 @@ CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(par
     {
         //Close blocking window
 
-
-
-
-
     });
 
-    //1. & 2. Create a request POSt like below
-    //media post->/upload/drive/v2/files
-    //metadata post -> /drive/v2/files
-    //https://www.googleapis.com/upload/drive/v2/files?uploadType=resumable
-    //PUT https://www.googleapis.com/upload/drive/v2/files/[FILE_ID]?uploadType=resumable
-    //3.Add metadata to the request body in json format otherwhise leave empty
-    //4.Add HTTP headers: optional MIME type.(X-Upload-Content-Type) default: application/octet-stream
-    //X-Upload-Content-Lenght<-optional: number of bytes sent in each part
-    //Content-Type<-Required if you have metadata: application/json; charset=UTF-8
-    //Content-Lenght<-Required unless you use chunked transfer encoding. Set to the number of bytes in the body of this initial request.
-    //Beispiel:
-
-    //POST https://www.googleapis.com/upload/drive/v2/files?uploadType=resumable HTTP/1.1
-    //Authorization: Bearer [YOUR_AUTH_TOKEN]
-    //Content-Length: 38
-    //Content-Type: application/json; charset=UTF-8
-    //X-Upload-Content-Type: image/jpeg
-    //X-Upload-Content-Length: 2000000
-    //{
-      //"title": "myObject"
-    //}
-    //5. Es kommt ein Http satus code zurück(200 falls ok) der eine URI enthält die für upload genutzt werden kann
-
-    //FILE UPLOADEN:
-    //1.Create PUT request to the received url
-    //2.Add the files data to the request body
-    //3.Add Conten-Lenght HTTP header <- numb of bytes in file
-    //4.Send request <-if it was successfull return code is 200 OK or 201 Created
 
     //Wenn 503 zurück kommt ist upload unterbchen
     //1. Empty PUT request um den upload status abzufragen
@@ -105,7 +73,7 @@ void CloudInterface::TestUploadMultiPart()
 
     //HEAD
     QHttpPart initPart;
-    initPart.setRawHeader("Authorization", ("Bearer " + m_authenticator->m_authFlow->token()).toUtf8());
+    initPart.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
     //initPart.setRawHeader("Contet-Type", "multipart/related"); done in constructor
 
     //META
@@ -245,10 +213,8 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath)
 
 void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *reply)
 {
-    //Parse response:
-    //If data is 0. Session was sucessfull created
-    QString Content_Lenght = QString::fromUtf8(reply->rawHeader("Content-Lenght"));
-    if(Content_Lenght > 0)
+
+    if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200)
     {
         //Handle Error
         QJsonDocument document = QJsonDocument::fromJson(reply->readAll());
@@ -263,6 +229,7 @@ void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *r
 
 
     //qDebug() << reply->rawHeaderPairs();
+    QString Content_Lenght = QString::fromUtf8(reply->rawHeader("Content-Lenght"));
     QString Content_Type = QString::fromUtf8(reply->rawHeader("Content-Type"));
     QString X_GUploader_UploadID = QString::fromUtf8(reply->rawHeader("X-GUploader-UploadID"));
     QString Location = QString::fromUtf8(reply->rawHeader("Location"));

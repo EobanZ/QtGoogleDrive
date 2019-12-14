@@ -32,6 +32,7 @@ protected:
     QNetworkReply* m_networkReply;
     QString m_currentFile;
 
+
 signals:
     void OnUploadLinkReceived(QString url, QString filePath);
 

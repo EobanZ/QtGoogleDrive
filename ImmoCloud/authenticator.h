@@ -18,6 +18,10 @@ public:
 protected:
     Authenticator(QString clientID, QString clientSecret, QObject *parent = nullptr);
 
+private:
+    void SaveToJson();
+    void GetNewToken();
+
 protected:
     QString m_clientID;
     QString m_clientSecret;
@@ -26,6 +30,8 @@ protected:
     QUrl m_TokenUrl;
 
     QString m_token;
+
+    QString m_pathToConfig;
 
 
     QOAuth2AuthorizationCodeFlow* m_authFlow;
