@@ -60,11 +60,12 @@ void MainWindow::dropEvent(QDropEvent *e)
     e->acceptProposedAction();
 }
 
-
-
 void MainWindow::on_pushButton_clicked()
 {
-    m_cloudInterface->TestUploadResumable();
+    QStringList files;
+    files.push_back("C:\\Users\\Fabi\\Pictures\\Wallpaper\\chl1lq6.jpg");
+    files.push_back("C:\\Users\\Fabi\\Pictures\\Uplay\\Tom Clancy's Rainbow Six® Siege\\Tom Clancy's Rainbow Six® Siege2017-11-18-0-19-6.jpg");
+    m_cloudInterface->UploadFiles(files, "root");
 }
 
 void MainWindow::parseJsonSecret(GoogleConfig& gConfig)

@@ -11,47 +11,38 @@ class QNetworkReply;
 class CloudInterface : public QObject
 {
     Q_OBJECT
+
 public:
     explicit CloudInterface(Authenticator* auth,QObject *parent = nullptr);
     CloudInterface(QString clientID, QString ClientSecret, QObject* parent = nullptr);
-    virtual void UploadFiles(QStringList filePaths) = 0;
     void Authorize();
-    void TestUploadResumable();
-    virtual void CreateFolder(QString folderName, QString parentId) = 0;
-
+    virtual void UploadFiles(QStringList filePaths, QString folderName) = 0; //Should search for foler. If not found create new and upload files there
+    virtual void CreateFolder(QString folderName, QString parent) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
+    virtual void DeleteFolderWithFiles(QString folder) = 0; //Should find a folder and delete it with all the files folders it contains
+    virtual void DeleteSingleFile(QString file) = 0; //Should delete a single file
 
 private:
 
-
 protected:
     QString GetContentTypeByExtension(QString file);
-    virtual void UploadFile(QString filePath, QString folderId) = 0;//Start Upload
-    virtual void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition) = 0;
+
+
+public:
+
 
 
     //TODO:
-//    virtual void CreateFolder(QString name);
 //    virtual void ListAllFiles();//ImmoCloud Root folder
 //    virtual void ListAllFiles(QString folderId);
 //    virtual void ListAllFolders();
-//    virtual void LookupFolderIDwithPath();
 //    virtual void DeleteFile(QString QNameOrId);
 //    virtual void GetFileMetadata(QString);
 //    virtual void ShareFolder(QString);
-//    virtual void UploadFile(QString file, QString folderId);
 
 protected:
     Authenticator* m_authenticator;
-    QNetworkAccessManager* m_networkManager;
-    QNetworkReply* m_networkReply;
-    QString m_currentFile;
-    QString m_currentUploadUrl;
-    bool m_isUploading;
-
 
 signals:
-    void OnUploadLinkReceived(QString url, QString filePath);
-
 public slots:
 };
 
@@ -73,10 +64,17 @@ class CloudInterface_GoogleDrive : public CloudInterface
 public:
     CloudInterface_GoogleDrive(Authenticator_GoogleDrive* auth, QObject *parent = nullptr);
     CloudInterface_GoogleDrive(QString clientID, QString cliedSecret, QObject *parent = nullptr);
-    virtual void UploadFiles(QStringList files) override;
-    virtual void UploadFile(QString filePath, QString folderId) override;
-    virtual void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition) override;
-    virtual void CreateFolder(QString folderName, QString parentId) override;
+    virtual void UploadFiles(QStringList files, QString folder) override;
+    virtual void CreateFolder(QString folderName, QString parent) override;
+    virtual void DeleteFolderWithFiles(QString folder) override;
+    virtual void DeleteSingleFile(QString file) override;
+
+private:
+    void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition);
+    void UploadFile(QString filePath, QString folderId);
+    //TODO: maybe create query response type and make a bool GetAllFolders(queryType& outType)
+    bool GetFolderId(QString name, QString& id);
+    bool GetFileId(QString name, QString& id);
 
 };
 

@@ -5,6 +5,7 @@
 class QDragEnterEvent;
 class QDropEvent;
 class CloudInterface;
+class CloudInterface_GoogleDrive;
 struct GoogleConfig;
 
 QT_BEGIN_NAMESPACE

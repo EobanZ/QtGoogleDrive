@@ -11,35 +11,16 @@
 #include <QFile>
 #include <QEventLoop>
 
-CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth), m_isUploading(false)
+CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth)
 {
-    m_networkManager = new QNetworkAccessManager(this);
-
     //Connect all functions
     connect(m_authenticator, &Authenticator::OnSuccess, [&]()
     {
         //Close blocking window
 
+        //TODO: Check if ImmoCloud folder exits. If not create an save id;
+
     });
-
-
-    //Wenn 503 zurück kommt ist upload unterbchen
-    //1. Empty PUT request um den upload status abzufragen
-    //2. Content-Range zum header hinzufügen: falls gesammtgröße bekannt: */göße annstonsten */*
-    //3. Response verarbeiten: 200/201->OK 308->Incomplete 404->upload needs to be restarted
-    //4. Im Response "Range" Header stehen wie viel bytes bereits empfangen wurden zb: bytes=0-42 <- ersten 43 bytes wurden empfangen
-    //5. Restlichen bytes senden. Bei dem beispiel 43 bis filesize-1. Content-Range: bytes 43-filesize-1/filesize
-
-
-    //simple upload uploadType=media -> 5mb or less. Check file size and choose upload type
-    //simple upload + metatdata uploadType=multipart
-    //Resumable upload uploadType=resumable <- beste choice für alles weil nur 1 zusätzlicher request und funzt auch mit kleinen dateien
-    //Beispiel:
-    //PUT https://www.googleapis.com/upload/drive/v2/files?uploadType=resumable&upload_id=xa298sd_sdlkj2 HTTP/1.1
-    //Content-Length: 1999957
-    //Content-Range: bytes 43-1999999/2000000
-    //[BYTES 43-1999999]
-
 
 }
 
@@ -49,14 +30,6 @@ void CloudInterface::Authorize(){
     if(m_authenticator)
         m_authenticator->StartAuth();
 }
-
-
-
-void CloudInterface::TestUploadResumable()
-{
-    UploadFile("C:\\Users\\Fabi\\Pictures\\Wallpaper\\chl1lq6.jpg", "root");
-}
-
 
 
 QString CloudInterface::GetContentTypeByExtension(QString extension)
@@ -101,25 +74,26 @@ CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(QString clientID, QString
 
 }
 
-void CloudInterface_GoogleDrive::UploadFiles(QStringList files)
+void CloudInterface_GoogleDrive::UploadFiles(QStringList files, QString folder)
 {
     //Check if theres a ImmoCloud folder. if not create one
 
-    //TODO:
-    //get folder as parameter
-    //check if folder exists. if not create and upload
+    //TODO: !!!!!! 1. find check if the folder is an id by checking if it alredy exists
+    //2. if not check if the folder name already exists. If->get the id and upload it as child
+    //3. else Create a new folder and add the id tho the json of the file.
+
 
     //Check if authorized.
     if(!m_authenticator->isGranted())
-        return;
+        return; //TODO: emit abort
 
     foreach (auto path, files) {
-        UploadFile(path, "root");
+        UploadFile(path, folder);
     }
 }
 
 //Uploads a file to a specific folder. Use "root" for default folder
-void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
+void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folder)
 {
     static int uploadAttemptCount = 0;
     uploadAttemptCount++;
@@ -147,10 +121,10 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
     //Create MetaData with infos of the file to upload
     QJsonObject root;
     root.insert("name", fileInfo.fileName());
-    if(folderId != "root")
+    if(folder != "root")
     {
         QJsonArray parents;
-        parents.push_back(folderId);
+        parents.push_back(folder);
         root.insert("parents", QJsonValue(parents));
     }
     QJsonDocument body(root);
@@ -166,7 +140,7 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
     request.setRawHeader("X-Upload-Content-Length", QByteArray::number(fileInfo.size()));
 
     QEventLoop loop;
-    QNetworkReply* reply = m_networkManager->post(request, data);
+    QNetworkReply* reply = nManager->post(request, data);
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     reply->setParent(nManager); //so it will be destoryed with the NetworkAccessManager
     loop.exec();
@@ -266,7 +240,7 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
             //TODO: emit abort
             return;
         }
-        UploadFile(filePath, folderId);
+        UploadFile(filePath, folder);
         uploadAttemptCount = 0; //When returning from recurcive funktion set count back to 0. Return when upload was successfull or it faile 8 times
         return;
     }
@@ -279,20 +253,25 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
     qDebug() << uploadReply->readAll();
 
     nManager->deleteLater();
+    return;
+}
 
+bool CloudInterface_GoogleDrive::GetFolderId(QString name, QString &id)
+{
+    //TODO: implement
+    return true;
+}
+
+bool CloudInterface_GoogleDrive::GetFileId(QString name, QString &id)
+{
+    //TODO: implement
+    return true;
 }
 
 void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition)
 {
     static int resumeUploadAttempts = 0;
     resumeUploadAttempts++;
-
-    if(resumeUploadAttempts > 20)
-    {
-        //TODO: emit upload abort
-        resumeUploadAttempts = 0;
-        return;
-    }
 
     QFileInfo fileInfo(filePath);
 
@@ -309,7 +288,7 @@ void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sess
 
     file.seek(continuePosition);
     QEventLoop loop;
-    QNetworkReply* reply = nManager->put(request, file.read(fileInfo.size()-(continuePosition+1)));
+    QNetworkReply* reply = nManager->put(request, file.read(fileInfo.size()-(continuePosition+1))); //TODO: test this
     connect(reply, &QNetworkReply::finished,&loop,&QEventLoop::quit);
     reply->setParent(nManager);
     loop.exec();
@@ -371,11 +350,25 @@ void CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parent
     connect(reply, &QNetworkReply::finished, loop, &QEventLoop::quit);
     loop->exec();
 
-    qDebug() << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    qDebug() << reply->readAll();
+    //qDebug() << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    //qDebug() << reply->readAll();
 
     nManager->deleteLater();
 }
+
+void CloudInterface_GoogleDrive::DeleteFolderWithFiles(QString folder)
+{
+
+    //TODO: implement
+}
+
+void CloudInterface_GoogleDrive::DeleteSingleFile(QString file)
+{
+    //TODO: implement
+}
+
+
+
 
 
 
