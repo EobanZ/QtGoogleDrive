@@ -26,7 +26,7 @@ private:
 protected:
     QString GetContentTypeByExtension(QString file);
     virtual void UploadFile(QString filePath, QString folderId) = 0;//Start Upload
-    virtual void UploadFile(QString filePath, uint startBit) = 0;//Resume Upload
+    virtual void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition) = 0;
 
 
     //TODO:
@@ -75,10 +75,9 @@ public:
     CloudInterface_GoogleDrive(QString clientID, QString cliedSecret, QObject *parent = nullptr);
     virtual void UploadFiles(QStringList files) override;
     virtual void UploadFile(QString filePath, QString folderId) override;
-    virtual void UploadFile(QString filePath, uint startBit) override;
+    virtual void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition) override;
     virtual void CreateFolder(QString folderName, QString parentId) override;
-    void HandleCreateUploadSessionReply(QNetworkReply* reply);
-    void HandleUploadingReply(QNetworkReply* reply);
+
 };
 
 #endif // CLOUDINTERFACE_H
