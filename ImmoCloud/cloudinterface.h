@@ -7,6 +7,7 @@ class Authenticator_GoogleDrive;
 class QNetworkAccessManager;
 class QNetworkReply;
 
+
 class CloudInterface : public QObject
 {
     Q_OBJECT
@@ -15,8 +16,8 @@ public:
     CloudInterface(QString clientID, QString ClientSecret, QObject* parent = nullptr);
     virtual void UploadFiles(QStringList filePaths) = 0;
     void Authorize();
-    void TestUploadMultiPart();
     void TestUploadResumable();
+    virtual void CreateFolder(QString folderName, QString parentId) = 0;
 
 
 private:
@@ -24,8 +25,20 @@ private:
 
 protected:
     QString GetContentTypeByExtension(QString file);
-    virtual void UploadFile(QString filePath) = 0;
-    virtual void UploadFile(QString filePath, uint startBit) = 0;
+    virtual void UploadFile(QString filePath, QString folderId) = 0;//Start Upload
+    virtual void UploadFile(QString filePath, uint startBit) = 0;//Resume Upload
+
+
+    //TODO:
+//    virtual void CreateFolder(QString name);
+//    virtual void ListAllFiles();//ImmoCloud Root folder
+//    virtual void ListAllFiles(QString folderId);
+//    virtual void ListAllFolders();
+//    virtual void LookupFolderIDwithPath();
+//    virtual void DeleteFile(QString QNameOrId);
+//    virtual void GetFileMetadata(QString);
+//    virtual void ShareFolder(QString);
+//    virtual void UploadFile(QString file, QString folderId);
 
 protected:
     Authenticator* m_authenticator;
@@ -43,15 +56,27 @@ public slots:
 };
 
 
+
 ///////////////
+struct GoogleConfig{
+    QString clientID;
+    QString projectID;
+    QString authUri;
+    QString tokenUri;
+    QString authProvider;
+    QString clientSecret;
+    QString redirectUri;
+};
+
 class CloudInterface_GoogleDrive : public CloudInterface
 {
 public:
     CloudInterface_GoogleDrive(Authenticator_GoogleDrive* auth, QObject *parent = nullptr);
     CloudInterface_GoogleDrive(QString clientID, QString cliedSecret, QObject *parent = nullptr);
     virtual void UploadFiles(QStringList files) override;
-    virtual void UploadFile(QString filePath) override;
+    virtual void UploadFile(QString filePath, QString folderId) override;
     virtual void UploadFile(QString filePath, uint startBit) override;
+    virtual void CreateFolder(QString folderName, QString parentId) override;
     void HandleCreateUploadSessionReply(QNetworkReply* reply);
     void HandleUploadingReply(QNetworkReply* reply);
 };

@@ -5,10 +5,13 @@
 class QDragEnterEvent;
 class QDropEvent;
 class CloudInterface;
+struct GoogleConfig;
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+
 
 class MainWindow : public QMainWindow
 {
@@ -21,7 +24,7 @@ private slots:
     void on_pushButton_clicked();
 
 private:
-    void parseJsonSecret(QString& clientId, QString& clientSecret);
+    void parseJsonSecret(GoogleConfig& gConfig);
     void dragEnterEvent(QDragEnterEvent *e) override;
     void dropEvent(QDropEvent *e) override;
 

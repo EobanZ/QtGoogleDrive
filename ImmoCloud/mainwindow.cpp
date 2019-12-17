@@ -17,13 +17,12 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
 
     //Maybe pass a struct to get everything and use polymo. for different impl. for each cloud service
-    QString ClientIdentifier;
-    QString ClientSecret;
-    //parseJsonSecret(ClientIdentifier, ClientSecret);
+    GoogleConfig googleConfig;
+    parseJsonSecret(googleConfig);
 
-   // m_cloudInterface = new CloudInterface_GoogleDrive(ClientIdentifier, ClientSecret, this);
+    m_cloudInterface = new CloudInterface_GoogleDrive(googleConfig.clientID, googleConfig.clientSecret, this);
 
-    //m_cloudInterface->Authorize();
+    m_cloudInterface->Authorize();
     //Open window that can only be closed if Authentifiern emits OnSuccess() -> should close the window. BLOCK HERE with window.exec()??
 
 
@@ -68,7 +67,7 @@ void MainWindow::on_pushButton_clicked()
     m_cloudInterface->TestUploadResumable();
 }
 
-void MainWindow::parseJsonSecret(QString& cId, QString& cSecret)
+void MainWindow::parseJsonSecret(GoogleConfig& gConfig)
 {
     //Change this for different Cloud service. Better to do this in the constructor of eacht authenticator class, but i dont want to rewrite the who thing
     //Make sure everything needed to authenticate is available
@@ -104,6 +103,12 @@ void MainWindow::parseJsonSecret(QString& cId, QString& cSecret)
     QJsonArray redirectUris = web["redirect_uris"].toArray();
     QJsonValue redirectUri = redirectUris[0];
 
-    cId = clientID.toString();
-    cSecret = clientSecret.toString();
+    gConfig.clientSecret = clientSecret.toString();
+    gConfig.clientID = clientID.toString();
+    gConfig.authUri = authUri.toString();
+    gConfig.projectID = projectID.toString();
+    gConfig.authProvider = authProvider.toString();
+    gConfig.tokenUri = tokenUri.toString();
+    gConfig.redirectUri = redirectUri.toString();
+
 }

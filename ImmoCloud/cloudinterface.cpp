@@ -50,70 +50,11 @@ void CloudInterface::Authorize(){
         m_authenticator->StartAuth();
 }
 
-void CloudInterface::TestUploadMultiPart()
-{
 
-    QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::RelatedType);
-    multiPart->setBoundary("foo_bar_baz");
-    //Geh davon aus das Content_Lenght automatisch befüllt wird
-
-    QFileInfo fileInfo("C:\\Users\\Fabi\\OneDrive\\TODO.txt");
-    if(!fileInfo.exists())
-    {
-        qDebug() << "File not found";
-        return;
-    }
-
-
-    QFile* File = new QFile("C:\\Users\\Fabi\\OneDrive\\TODO.txt", multiPart);//set multipart ao parent so it will be destroyed correctly
-    if(!File->open(QIODevice::ReadOnly))
-        return;
-
-
-    QNetworkRequest request(QUrl("https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart HTTP/1.1"));
-
-    //HEAD
-    QHttpPart initPart;
-    initPart.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
-    //initPart.setRawHeader("Contet-Type", "multipart/related"); done in constructor
-
-    //META
-    QHttpPart metaPart;
-    metaPart.setRawHeader("Content-Type", "application/json; charset=UTF-8");
-    QJsonObject metaObject;
-    metaObject.insert("titel", fileInfo.fileName());
-    QJsonDocument metaJson(metaObject);
-    metaPart.setBody(metaJson.toJson());
-
-    //FILE
-    QHttpPart filePart;
-    filePart.setRawHeader("Content-Type", GetContentTypeByExtension(fileInfo.suffix()).toUtf8());
-    filePart.setBodyDevice(File);
-
-    //////
-    multiPart->append(initPart);
-    multiPart->append(metaPart);
-    multiPart->append(filePart);
-
-    m_networkReply = m_networkManager->post(request, multiPart);
-    multiPart->setParent(m_networkReply); //so it will be deleted with reply
-
-    connect(m_networkManager, &QNetworkAccessManager::finished, [](){qDebug() << "NetworkAcessManager finished";});
-
-    connect(m_networkReply, &QNetworkReply::uploadProgress,[=](qint64 sent, qint64 size){
-        QString s;
-        s = "" + QString::number(sent) + "/" + QString::number(size);
-        qDebug() << s;
-    });
-
-
-
-
-}
 
 void CloudInterface::TestUploadResumable()
 {
-    UploadFile("D:\\Downloads\\02. Alligatoah - Ein Problem Mit Alkohol.mp3");
+    UploadFile("C:\\Users\\Fabi\\Pictures\\Wallpaper\\chl1lq6.jpg", "12ulz_wKqItKunGb_SPCu50Ble4pZSC-N");
 }
 
 
@@ -162,20 +103,25 @@ CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(QString clientID, QString
 
 void CloudInterface_GoogleDrive::UploadFiles(QStringList files)
 {
+    //Check if theres a ImmoCloud folder. if not create one
+
+    //TODO:
+    //get folder as parameter
+    //check if folder exists. if not create and upload
+
     //Check if authorized.
     if(!m_authenticator->isGranted())
         return;
 
     foreach (auto path, files) {
-        UploadFile(path);
+        UploadFile(path, "root");
     }
 }
 
-//TODO::private function, die eine liste aller cloud elemente abruft und im hauptfenster anzeit. <- soll am anfang aufgerufen werden und dann immer wenn änderungen passierten
-
-void CloudInterface_GoogleDrive::UploadFile(QString filePath)
+//Uploads a file to a specific folder. Use "root" for default folder
+void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folderId)
 {
-    QString path = filePath;
+    //TODO: make synchronos
     if(!m_authenticator->isGranted())
         return;
 
@@ -191,14 +137,19 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath)
 
     //Create MetaData
     QJsonObject root;
-    root.insert("title", fileInfo.fileName());
+    root.insert("name", fileInfo.fileName());
+    if(folderId != "root")
+    {
+        QJsonArray parents;
+        parents.push_back(folderId);
+        root.insert("parents", QJsonValue(parents));
+    }
     QJsonDocument body(root);
-    QByteArray data = body.toJson();//TODO: Meta funktioniert nicht -> immer untiteld
-    qDebug() << data.size() << QJsonDocument::fromJson(data).toJson() ;
+    QByteArray data = body.toJson();
 
     //Init Upload Session
     QNetworkRequest request;
-    request.setUrl(QUrl("https://www.googleapis.com/upload/drive/v2/files?uploadType=resumable"));
+    request.setUrl(QUrl("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable"));
     request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
     request.setRawHeader("Content-Lenght", QByteArray::number(data.size()));
     request.setRawHeader("Content-Type", "application/json; charset=UTF-8");
@@ -240,9 +191,49 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, uint startBit)
     QNetworkReply* reply = m_networkManager->put(request, restOfFile);
     m_networkManager->setParent(reply);
 
-    connect(reply, &QNetworkReply::finished, this, &CloudInterface_GoogleDrive::HandleUploadingReply);
+    connect(m_networkManager, &QNetworkAccessManager::finished, this, &CloudInterface_GoogleDrive::HandleUploadingReply);
     connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
 
+}
+
+void CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parentId = "root")
+{
+
+    QNetworkAccessManager* nManager = new QNetworkAccessManager();
+    QNetworkRequest request(QUrl("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"));
+
+    QHttpMultiPart multiPart(QHttpMultiPart::ContentType::RelatedType);
+    multiPart.setBoundary("foo_bar_baz");
+    request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+
+    QJsonObject root;
+    root.insert("name", folderName);
+    root.insert("description", folderName);
+    root.insert("mimeType", "application/vnd.google-apps.folder");
+    if(parentId != "root")
+    {
+        QJsonArray parents;
+        parents.push_back(parentId);
+        root.insert("parents", QJsonValue(parents));
+    }
+    QJsonDocument doc(root);
+
+    QHttpPart part1;
+    part1.setRawHeader("Content-Type","application/json; charset=UTF-8");
+    part1.setBody(doc.toJson());
+
+    multiPart.append(part1);
+
+    QEventLoop* loop = new QEventLoop;
+    QNetworkReply* reply = nManager->post(request, &multiPart);
+    connect(reply, &QNetworkReply::finished, loop, &QEventLoop::quit);
+    loop->exec();
+
+    qDebug() << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    qDebug() << reply->readAll();
+
+    reply->deleteLater();
+    nManager->deleteLater();
 }
 
 void CloudInterface_GoogleDrive::HandleCreateUploadSessionReply(QNetworkReply *reply)
@@ -336,7 +327,7 @@ void CloudInterface_GoogleDrive::HandleUploadingReply(QNetworkReply *reply)
         else
         {
             //restart upload
-            UploadFile(m_currentFile);
+            UploadFile(m_currentFile, "root");
         }
 
     }
