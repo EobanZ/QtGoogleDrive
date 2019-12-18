@@ -32,6 +32,8 @@ private:
 private:
     Ui::MainWindow *ui;
     CloudInterface* m_cloudInterface;
+    QString m_AppFolderId;
+    QString m_AppName;
 
 };
 #endif // MAINWINDOW_H

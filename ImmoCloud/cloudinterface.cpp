@@ -13,24 +13,13 @@
 
 CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth)
 {
-    //Connect all functions
-    connect(m_authenticator, &Authenticator::OnSuccess, [&]()
-    {
-        //Close blocking window
-
-        //TODO: Check if ImmoCloud folder exits. If not create an save id;
-
-    });
 
 }
-
-
 
 void CloudInterface::Authorize(){
     if(m_authenticator)
         m_authenticator->StartAuth();
 }
-
 
 QString CloudInterface::GetContentTypeByExtension(QString extension)
 {
@@ -66,7 +55,6 @@ QString CloudInterface::GetContentTypeByExtension(QString extension)
 
 CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(Authenticator_GoogleDrive* auth, QObject *parent): CloudInterface((Authenticator*)auth, parent)
 {
-
 }
 
 CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(QString clientID, QString clientSecret, QObject *parent) : CloudInterface(new Authenticator_GoogleDrive(clientID, clientSecret, parent), parent)
@@ -249,22 +237,56 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folder)
     //TODO: emit successfull signal to close the blocking window
 
     qDebug() << "upload completed. Code: " << uploadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    qDebug() << reply->rawHeaderPairs();
-    qDebug() << uploadReply->readAll();
+    //qDebug() << reply->rawHeaderPairs();
+    //qDebug() << uploadReply->readAll();
 
     nManager->deleteLater();
     return;
 }
 
-bool CloudInterface_GoogleDrive::GetFolderId(QString name, QString &id)
+void CloudInterface_GoogleDrive::UpdateFoldersSnapshot()
 {
-    //TODO: implement
-    return true;
+    QNetworkAccessManager* nManager = new QNetworkAccessManager();
+    QUrl url("https://www.googleapis.com/drive/v3/files");
+    QUrlQuery query;
+    //query.addQueryItem("access_token=", m_authenticator->GetToken().toUtf8());
+    query.addQueryItem("pageSize", "100");
+    query.addQueryItem("q", "mimeType='application/vnd.google-apps.folder'");
+    //query.addQueryItem("q", "trashed=false");
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+
+    QEventLoop loop;
+    QNetworkReply* reply = nManager->get(request);
+    reply->setParent(nManager);
+    connect(nManager, &QNetworkAccessManager::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    m_foldersSnapshot.clear();
+
+    QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+    QJsonObject root = doc.object();
+    QJsonArray files = root["files"].toArray();
+    int filesCount = files.size();
+    for(int i = 0; i < filesCount; i++)
+    {
+        QString name = files[i].toObject().value("name").toString();
+        QString id = files[i].toObject().value("id").toString();
+        m_foldersSnapshot[name] = id;
+    }
+
+    //qDebug() << doc;
+    nManager->deleteLater();
 }
 
-bool CloudInterface_GoogleDrive::GetFileId(QString name, QString &id)
+bool CloudInterface_GoogleDrive::GetFolderId(QString name, QString &id)
 {
-    //TODO: implement
+    //TODO: 1. Look in Snapshot
+    //2. if found return
+    //3. if not update folder snapshot and search again //use lamda
+    //4. return ture if found, false if not
     return true;
 }
 
@@ -315,10 +337,37 @@ void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sess
 
 }
 
-void CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parentId = "root")
+///
+/// \brief CloudInterface_GoogleDrive::CreateFolder
+/// \param folderName
+/// \param parentId
+/// \return
+///
+QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parentId)
 {
-    //Todo: maybe in name of parent folder -> check if exist -> if not return
+    QString result = "";
 
+
+    auto searchSnapshot = [&](){
+        auto id = m_foldersSnapshot[folderName];
+        if(!id.isEmpty())
+        {
+            result = id;
+        }
+    };
+
+    searchSnapshot(); //1. Search the current snapshot
+    if(!result.isEmpty())
+        return result;
+
+    UpdateFoldersSnapshot(); //2. if not found. Get fresh snapshot and search again
+    searchSnapshot();
+    if(!result.isEmpty())
+        return result;
+
+
+
+    //3. if still not found create new folder
     QNetworkAccessManager* nManager = new QNetworkAccessManager();
     QNetworkRequest request(QUrl("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"));
 
@@ -350,22 +399,21 @@ void CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parent
     connect(reply, &QNetworkReply::finished, loop, &QEventLoop::quit);
     loop->exec();
 
-    //qDebug() << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    //qDebug() << reply->readAll();
+    if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
+    {
+        QJsonObject replyRoot = QJsonDocument::fromJson(reply->readAll()).object();
+        QString name = replyRoot.value("name").toString();
+        QString id = replyRoot.value("id").toString();
+        m_foldersSnapshot[name] = id;
+        result = id;
+    }
+
 
     nManager->deleteLater();
+
+    return result;
 }
 
-void CloudInterface_GoogleDrive::DeleteFolderWithFiles(QString folder)
-{
-
-    //TODO: implement
-}
-
-void CloudInterface_GoogleDrive::DeleteSingleFile(QString file)
-{
-    //TODO: implement
-}
 
 
 

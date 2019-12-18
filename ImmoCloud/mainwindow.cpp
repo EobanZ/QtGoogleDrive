@@ -15,8 +15,8 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     setAcceptDrops(true);
 
 
+    m_AppName = "ImmoCloud";
 
-    //Maybe pass a struct to get everything and use polymo. for different impl. for each cloud service
     GoogleConfig googleConfig;
     parseJsonSecret(googleConfig);
 
@@ -25,8 +25,10 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     m_cloudInterface->Authorize();
     //Open window that can only be closed if Authentifiern emits OnSuccess() -> should close the window. BLOCK HERE with window.exec()??
 
+    //TODO: Creat or get AppFolder after Interface is Authorized
+    //TODO: create slot(createAppFolder) and connect with CloudInterface Success()
+    QTimer::singleShot(1000, [&](){m_AppFolderId = m_cloudInterface->CreateFolder(m_AppName, "root");});
 
-    //Slot erstellen für UploadButtonPressed()
     //QStringList list; //<--created from drop event. Maybe make global variable to clear and fill when drop event occours. Better to make new window with title, and append to the lsit. when ok button pressed the list filse gets uploaded
     //m_cloudInterface->UploadFiles(list);
 
@@ -65,7 +67,9 @@ void MainWindow::on_pushButton_clicked()
     QStringList files;
     files.push_back("C:\\Users\\Fabi\\Pictures\\Wallpaper\\chl1lq6.jpg");
     files.push_back("C:\\Users\\Fabi\\Pictures\\Uplay\\Tom Clancy's Rainbow Six® Siege\\Tom Clancy's Rainbow Six® Siege2017-11-18-0-19-6.jpg");
-    m_cloudInterface->UploadFiles(files, "root");
+    m_cloudInterface->UploadFiles(files, m_AppFolderId);
+
+    //m_cloudInterface->DeleteFolderWithFiles(QString());
 }
 
 void MainWindow::parseJsonSecret(GoogleConfig& gConfig)

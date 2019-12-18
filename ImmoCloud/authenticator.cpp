@@ -27,6 +27,7 @@ Authenticator::Authenticator(QString clientID, QString clientSecret, QObject *pa
 
 void Authenticator::SaveToJson()
 {
+
     QJsonObject root;
     root.insert("token", m_authFlow->token());
     root.insert("expires", m_authFlow->expirationAt().toString()); //TODO: get the refresh token in the first response and save it. https://stackoverflow.com/questions/10827920/not-receiving-google-oauth-refresh-token
@@ -34,6 +35,7 @@ void Authenticator::SaveToJson()
 
     if(QFileInfo(m_pathToConfig+"auth.json").exists())
         QFile(m_pathToConfig+"auth.json").remove();
+
 
     QFile saveFile(m_pathToConfig+"auth.json");
     saveFile.open(QIODevice::ReadWrite);
@@ -73,12 +75,13 @@ void Authenticator::StartAuth()
         m_token = token;
         if(expiresDate.toLocalTime() < QDateTime::currentDateTime().toLocalTime())
         {
-            //gets new token and saves it in the JSON file. TODO: use refreshToken instead of creating new one
-            m_authFlow->grant();
+            //TODO: use refreshToken instead of creating new one
+            GetNewToken();
             return;
 
         }
 
+        //TODO: check if token is really valid
         m_isGranted = true;
         emit OnSuccess();
     }
@@ -98,12 +101,12 @@ QString Authenticator::GetToken()
     return m_token;
 }
 
-
 Authenticator_GoogleDrive::Authenticator_GoogleDrive(QString clientID, QString clientSecret, QObject *parent): Authenticator(clientID, clientSecret, parent)
 {
     m_AuthorizeUrl = QUrl("https://accounts.google.com/o/oauth2/auth");
     m_TokenUrl = QUrl("https://oauth2.googleapis.com/token");
     m_scope = "https://www.googleapis.com/auth/drive";
+
 
     m_pathToConfig = QDir::currentPath()+"/config/google_drive/";
 
@@ -113,6 +116,5 @@ Authenticator_GoogleDrive::Authenticator_GoogleDrive(QString clientID, QString c
     m_authFlow->setClientIdentifier(m_clientID);
     m_authFlow->setClientIdentifierSharedKey(m_clientSecret);
     m_authFlow->setReplyHandler(m_replyHandler);
-
 
 }

@@ -2,11 +2,11 @@
 #define CLOUDINTERFACE_H
 
 #include <QObject>
+#include <QMap>
 class Authenticator;
 class Authenticator_GoogleDrive;
 class QNetworkAccessManager;
 class QNetworkReply;
-
 
 class CloudInterface : public QObject
 {
@@ -17,9 +17,7 @@ public:
     CloudInterface(QString clientID, QString ClientSecret, QObject* parent = nullptr);
     void Authorize();
     virtual void UploadFiles(QStringList filePaths, QString folderName) = 0; //Should search for foler. If not found create new and upload files there
-    virtual void CreateFolder(QString folderName, QString parent) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
-    virtual void DeleteFolderWithFiles(QString folder) = 0; //Should find a folder and delete it with all the files folders it contains
-    virtual void DeleteSingleFile(QString file) = 0; //Should delete a single file
+    virtual QString CreateFolder(QString folderName, QString parent) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
 
 private:
 
@@ -43,6 +41,7 @@ protected:
     Authenticator* m_authenticator;
 
 signals:
+    void OnIsReady();
 public slots:
 };
 
@@ -65,16 +64,21 @@ public:
     CloudInterface_GoogleDrive(Authenticator_GoogleDrive* auth, QObject *parent = nullptr);
     CloudInterface_GoogleDrive(QString clientID, QString cliedSecret, QObject *parent = nullptr);
     virtual void UploadFiles(QStringList files, QString folder) override;
-    virtual void CreateFolder(QString folderName, QString parent) override;
-    virtual void DeleteFolderWithFiles(QString folder) override;
-    virtual void DeleteSingleFile(QString file) override;
+    virtual QString CreateFolder(QString folderName, QString parent) override;
+
 
 private:
     void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition);
     void UploadFile(QString filePath, QString folderId);
-    //TODO: maybe create query response type and make a bool GetAllFolders(queryType& outType)
+    void UpdateFoldersSnapshot();
+
     bool GetFolderId(QString name, QString& id);
-    bool GetFileId(QString name, QString& id);
+
+    //TODO: QMap<QString, QString> GetAllFoldersInFolder(QString folderId);
+
+private:
+    QMap<QString, QString> m_foldersSnapshot;
+    //m_fileSnapshot?? for what?
 
 };
 
