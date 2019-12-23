@@ -6,6 +6,7 @@ class QDragEnterEvent;
 class QDropEvent;
 class CloudInterface;
 class CloudInterface_GoogleDrive;
+class QTableWidget;
 struct GoogleConfig;
 
 QT_BEGIN_NAMESPACE
@@ -22,7 +23,6 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 private slots:
-    void on_pushButton_clicked();
 
 private:
     void parseJsonSecret(GoogleConfig& gConfig);
@@ -31,6 +31,7 @@ private:
 
 private:
     Ui::MainWindow *ui;
+    QTableWidget* m_tableWidget;
     CloudInterface* m_cloudInterface;
     QString m_AppFolderId;
     QString m_AppName;

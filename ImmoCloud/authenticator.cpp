@@ -46,7 +46,7 @@ void Authenticator::SaveToJson()
 
 void Authenticator::GetNewToken()
 {
-    if(m_scope == "" || m_AuthorizeUrl.url() == "" || m_TokenUrl.url() == "" || m_clientID == "" || m_clientSecret == "" || !m_authFlow)
+    if(m_scope.isEmpty() || m_AuthorizeUrl.url().isEmpty() || m_TokenUrl.url().isEmpty() || m_clientID.isEmpty() || m_clientSecret.isEmpty() || !m_authFlow)
         return;
 
 

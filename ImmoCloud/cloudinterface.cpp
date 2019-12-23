@@ -13,7 +13,7 @@
 
 CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth)
 {
-
+    connect(m_authenticator, &Authenticator::OnSuccess, [&](){emit IsReady();});
 }
 
 void CloudInterface::Authorize(){
@@ -55,6 +55,8 @@ QString CloudInterface::GetContentTypeByExtension(QString extension)
 
 CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(Authenticator_GoogleDrive* auth, QObject *parent): CloudInterface((Authenticator*)auth, parent)
 {
+
+
 }
 
 CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(QString clientID, QString clientSecret, QObject *parent) : CloudInterface(new Authenticator_GoogleDrive(clientID, clientSecret, parent), parent)
@@ -64,19 +66,45 @@ CloudInterface_GoogleDrive::CloudInterface_GoogleDrive(QString clientID, QString
 
 void CloudInterface_GoogleDrive::UploadFiles(QStringList files, QString folder)
 {
-    //Check if theres a ImmoCloud folder. if not create one
 
-    //TODO: !!!!!! 1. find check if the folder is an id by checking if it alredy exists
-    //2. if not check if the folder name already exists. If->get the id and upload it as child
-    //3. else Create a new folder and add the id tho the json of the file.
+    QString fId;
+    QString fName;
+    if(folder != "root")
+    {
+        //Check if the Name or Id already exitst
+        UpdateFoldersSnapshot();
+        m_foldersSnapshot[folder];
+        if(fId.isEmpty())
+        {
+            for(auto e: m_foldersSnapshot.keys())
+            {
+                if(m_foldersSnapshot.value(e) == folder)
+                {
+                    fName = e;
+                    fId = folder;
+                }
+            }
+        }
 
+        //If still empty, folder doesn't exists
+        if(fId.isEmpty())
+        {
+            qDebug() << "UploadFiles() error. Folder doestn't exist:  " << fName << " " << fId;
+            //TODO: emit abort
+            return;
+        }
+    }
+
+    //if here still empty and not return its the root folder
+    if(fId.isEmpty())
+        fId = folder;//"root"
 
     //Check if authorized.
     if(!m_authenticator->isGranted())
         return; //TODO: emit abort
 
     foreach (auto path, files) {
-        UploadFile(path, folder);
+        UploadFile(path, fId);
     }
 }
 
@@ -281,15 +309,6 @@ void CloudInterface_GoogleDrive::UpdateFoldersSnapshot()
     nManager->deleteLater();
 }
 
-bool CloudInterface_GoogleDrive::GetFolderId(QString name, QString &id)
-{
-    //TODO: 1. Look in Snapshot
-    //2. if found return
-    //3. if not update folder snapshot and search again //use lamda
-    //4. return ture if found, false if not
-    return true;
-}
-
 void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition)
 {
     static int resumeUploadAttempts = 0;
@@ -310,7 +329,7 @@ void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sess
 
     file.seek(continuePosition);
     QEventLoop loop;
-    QNetworkReply* reply = nManager->put(request, file.read(fileInfo.size()-(continuePosition+1))); //TODO: test this
+    QNetworkReply* reply = nManager->put(request, file.read(fileInfo.size())); //TODO: test this
     connect(reply, &QNetworkReply::finished,&loop,&QEventLoop::quit);
     reply->setParent(nManager);
     loop.exec();
@@ -337,12 +356,6 @@ void CloudInterface_GoogleDrive::ResumeUploadFile(QString filePath, QString sess
 
 }
 
-///
-/// \brief CloudInterface_GoogleDrive::CreateFolder
-/// \param folderName
-/// \param parentId
-/// \return
-///
 QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString parentId)
 {
     QString result = "";
@@ -412,6 +425,204 @@ QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString par
     nManager->deleteLater();
 
     return result;
+}
+
+QList<QPair<QString,QString>> CloudInterface_GoogleDrive::GetAllChildFolders(QString folderName)
+{
+    //1. make qery: "q" "'ImmoCloud' in parents;
+    //2. get the name frome json respnse and append in StringList
+    //3. return
+    UpdateFoldersSnapshot();
+
+    QList<QPair<QString,QString>> result;
+    QString parentId = m_foldersSnapshot[folderName];
+
+    if(parentId.isEmpty())
+    {
+        qDebug() << "GetAllChildFolders() error. Folder does not exist";
+        //Todo: emit abort
+        return result;
+    }
+
+    //Get metadata for every folder
+    QNetworkAccessManager* nManager = new QNetworkAccessManager();
+    QString baseUrl = "https://www.googleapis.com/drive/v3/files";
+    for(auto e : m_foldersSnapshot.keys())
+    {
+        QString fileId = m_foldersSnapshot.value(e);
+        QUrl url(baseUrl + "/" + fileId);
+
+        QUrlQuery query;
+        query.addQueryItem("fields", "appProperties,capabilities,contentHints,createdTime,description,explicitlyTrashed,fileExtension,folderColorRgb,fullFileExtension,headRevisionId,iconLink,id,imageMediaMetadata,isAppAuthorized,kind,lastModifyingUser,md5Checksum,mimeType,modifiedByMeTime,modifiedTime,name,originalFilename,ownedByMe,owners,parents,permissions,properties,quotaBytesUsed,shared,sharedWithMeTime,sharingUser,size,spaces,starred,thumbnailLink,trashed,version,videoMediaMetadata,viewedByMe,viewedByMeTime,viewersCanCopyContent,webContentLink,webViewLink,writersCanShare");
+        url.setQuery(query);
+
+        QNetworkRequest request(url);
+        request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+
+        QEventLoop loop;
+        QNetworkReply* reply = nManager->get(request);
+        reply->setParent(nManager);
+        connect(nManager, &QNetworkAccessManager::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+
+
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QJsonObject root = doc.object();
+
+        QJsonArray parentsArr = root["parents"].toArray();
+        if((parentsArr.size() > 0) && (parentsArr[0].toString() == parentId))
+        {
+            result.push_back(qMakePair(root.value("name").toString(), root.value("id").toString()));
+        }
+    }
+
+    nManager->deleteLater();
+
+
+    //qDebug() << result;
+    return result;
+
+}
+
+QString CloudInterface_GoogleDrive::MakeOrGetShareLink(QString fileId)
+{
+    QString link;
+    //TODO: maybe check if already shared. I dont know if the share link is a new one every time
+    //All possible fields:
+//    {
+//       "capabilities":{
+//          "canAddChildren":true,
+//          "canChangeCopyRequiresWriterPermission":false,
+//          "canChangeViewersCanCopyContent":false,
+//          "canComment":true,
+//          "canCopy":false,
+//          "canDelete":true,
+//          "canDownload":true,
+//          "canEdit":true,
+//          "canListChildren":true,
+//          "canModifyContent":true,
+//          "canMoveItemIntoTeamDrive":true,
+//          "canMoveItemOutOfDrive":true,
+//          "canReadRevisions":false,
+//          "canRemoveChildren":true,
+//          "canRename":true,
+//          "canShare":true,
+//          "canTrash":true,
+//          "canUntrash":true
+//       },
+//       "createdTime":"2019-11-27T08:47:05.586Z",
+//       "explicitlyTrashed":false,
+//       "folderColorRgb":"#8f8f8f",
+//       "iconLink":"https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.folder+shared",
+//       "id":"14KCyg4UAHPHRmR5k9cJIhInw1p652iVd",
+//       "isAppAuthorized":false,
+//       "kind":"drive#file",
+//       "lastModifyingUser":{
+//          "displayName":"Fabien Zwick",
+//          "emailAddress":"zwick.fabi@googlemail.com",
+//          "kind":"drive#user",
+//          "me":true,
+//          "permissionId":"16932818008497388934",
+//          "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64"
+//       },
+//       "mimeType":"application/vnd.google-apps.folder",
+//       "modifiedByMeTime":"2019-11-27T08:51:47.513Z",
+//       "modifiedTime":"2019-11-27T08:51:47.513Z",
+//       "name":"Bachelorarbeit",
+//       "ownedByMe":true,
+//       "owners":[
+//          {
+//             "displayName":"Fabien Zwick",
+//             "emailAddress":"zwick.fabi@googlemail.com",
+//             "kind":"drive#user",
+//             "me":true,
+//             "permissionId":"16932818008497388934",
+//             "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64"
+//          }
+//       ],
+//       "parents":[
+//          "0ANdRFCSIMzxDUk9PVA"
+//       ],
+//       "permissions":[
+//          {
+//             "allowFileDiscovery":false,
+//             "id":"anyoneWithLink",
+//             "kind":"drive#permission",
+//             "role":"reader",
+//             "type":"anyone"
+//          },
+//          {
+//             "deleted":false,
+//             "displayName":"Fabien Zwick",
+//             "emailAddress":"zwick.fabi@googlemail.com",
+//             "id":"16932818008497388934",
+//             "kind":"drive#permission",
+//             "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64",
+//             "role":"owner",
+//             "type":"user"
+//          }
+//       ],
+//       "quotaBytesUsed":"0",
+//       "shared":true,
+//       "spaces":[
+//          "drive"
+//       ],
+//       "starred":false,
+//       "trashed":false,
+//       "version":"10",
+//       "viewedByMe":true,
+//       "viewedByMeTime":"2019-12-04T13:10:22.089Z",
+//       "viewersCanCopyContent":true,
+//       "webViewLink":"https://drive.google.com/drive/folders/14KCyg4UAHPHRmR5k9cJIhInw1p652iVd",
+//       "writersCanShare":true
+//    }
+
+    //Make folder shared
+    QNetworkAccessManager* nManager = new QNetworkAccessManager();
+    QNetworkRequest request(QUrl(QString("https://www.googleapis.com/drive/v3/files/%1/permissions").arg(fileId)));
+    request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+    request.setRawHeader("Content-Type", "application/json; charset=UTF-8");
+
+    QJsonObject root;
+    root.insert("role","reader");
+    root.insert("type","anyone");
+    root.insert("value","");
+    QJsonDocument doc(root);
+
+    QEventLoop loop;
+    QNetworkReply* reply = nManager->post(request, doc.toJson());
+    reply->setParent(nManager);
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    //qDebug() << QJsonDocument::fromJson(reply->readAll());
+
+
+    //Get the metadata with the link
+    QUrl url(QString("https://www.googleapis.com/drive/v3/files/%1").arg(fileId));
+    QUrlQuery query;
+    query.addQueryItem("fields", "webViewLink");
+    url.setQuery(query);
+    request = QNetworkRequest(url);
+    request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+
+    QEventLoop loop2;
+    reply = nManager->get(request);
+    reply->setParent(nManager);
+    connect(reply, &QNetworkReply::finished, &loop2, &QEventLoop::quit);
+    loop2.exec();
+
+    QJsonDocument answer = QJsonDocument::fromJson(reply->readAll());
+    QJsonObject linkRoot = answer.object();
+
+    link = linkRoot.value("webViewLink").toString();
+
+    qDebug() << link;
+
+    nManager->deleteLater();
+
+    return link;
+
 }
 
 

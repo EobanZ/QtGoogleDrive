@@ -18,6 +18,8 @@ public:
     void Authorize();
     virtual void UploadFiles(QStringList filePaths, QString folderName) = 0; //Should search for foler. If not found create new and upload files there
     virtual QString CreateFolder(QString folderName, QString parent) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
+    virtual QList<QPair<QString,QString>> GetAllChildFolders(QString folderName) = 0; //Should return all the names and ids of the children folder.
+    virtual QString MakeOrGetShareLink(QString fileId) = 0;
 
 private:
 
@@ -30,18 +32,15 @@ public:
 
 
     //TODO:
-//    virtual void ListAllFiles();//ImmoCloud Root folder
-//    virtual void ListAllFiles(QString folderId);
 //    virtual void ListAllFolders();
 //    virtual void DeleteFile(QString QNameOrId);
-//    virtual void GetFileMetadata(QString);
 //    virtual void ShareFolder(QString);
 
 protected:
     Authenticator* m_authenticator;
 
 signals:
-    void OnIsReady();
+    void IsReady();
 public slots:
 };
 
@@ -65,14 +64,13 @@ public:
     CloudInterface_GoogleDrive(QString clientID, QString cliedSecret, QObject *parent = nullptr);
     virtual void UploadFiles(QStringList files, QString folder) override;
     virtual QString CreateFolder(QString folderName, QString parent) override;
-
+    virtual QList<QPair<QString,QString>> GetAllChildFolders(QString folderName) override;
+    virtual QString MakeOrGetShareLink(QString fileId) override;
 
 private:
     void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition);
     void UploadFile(QString filePath, QString folderId);
     void UpdateFoldersSnapshot();
-
-    bool GetFolderId(QString name, QString& id);
 
     //TODO: QMap<QString, QString> GetAllFoldersInFolder(QString folderId);
 
