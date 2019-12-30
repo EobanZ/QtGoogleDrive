@@ -6,9 +6,12 @@
 #include <QDragEnterEvent>
 #include <QDebug>
 #include <windows.h>
-#include <QTableWidget>
-#include <QTableWidgetItem>
-
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QDialog>
+#include <QMessageBox>
+#include <QProgressDialog>
+#include <uploaddialog.h>
 
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow)
@@ -18,34 +21,87 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     ui->setupUi(this);
     setAcceptDrops(true);
-
-    m_tableWidget = ui->tableFolders;
-
-
-
-
+    m_listWidget = ui->listWidget;
+    m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    //m_listWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
     GoogleConfig googleConfig;
     parseJsonSecret(googleConfig);
 
+
+
     m_cloudInterface = new CloudInterface_GoogleDrive(googleConfig.clientID, googleConfig.clientSecret, this);
     connect(m_cloudInterface, &CloudInterface_GoogleDrive::IsReady, [&](){
         //When authorized -> create root folder
+
+        QProgressDialog prog("Getting folder infos","cancel",0, 2, this);
+        prog.show();
+        prog.setWindowModality(Qt::WindowModal);
+        prog.setValue(0);
         m_AppFolderId = m_cloudInterface->CreateFolder(m_AppName, "root");
+        prog.setValue(1);
         m_cloudInterface->MakeOrGetShareLink(m_AppFolderId);
+        prog.setValue(2);
+        UpdateFolderList();
+        prog.close();
     });
+    //TODO:Show loading window
     m_cloudInterface->Authorize();
 
-
-
-    //Open window that can only be closed if Authentifiern emits OnSuccess() -> should close the window. BLOCK HERE with window.exec()??
-
-
+    connect(m_listWidget, &QListWidget::itemDoubleClicked, this, &MainWindow::ListItemClicked);
+    connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &MainWindow::showContextMenu);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::UpdateFolderList()
+{
+    QProgressDialog prog("Refreshing Folder List", nullptr, 0, 2, nullptr);
+    prog.setValue(1);
+    prog.setModal(true);
+    prog.show();
+
+    //Get folder in app folder in drive
+    QList<QPair<QString,QString>> folders = m_cloudInterface->GetAllChildFolders(m_AppName);
+    m_listWidget->clear();
+    for(auto& folder : folders)
+    {
+        QListWidgetItem* item = new QListWidgetItem(folder.first);
+        item->setStatusTip(folder.second);
+        m_listWidget->addItem(item);
+    }
+
+    prog.setValue(2);
+}
+
+void MainWindow::ListItemClicked(QListWidgetItem *item)
+{
+    if(!item)
+        return;
+
+    QString folderName = item->text();
+    QString folderId = item->statusTip();
+
+    //Open Dialog with link
+    QString shareLink = m_cloudInterface->MakeOrGetShareLink(folderId);
+
+
+    QMessageBox box(QMessageBox::NoIcon, "Share Link", shareLink, QMessageBox::Ok, this);
+    box.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    box.exec();
+}
+
+void MainWindow::OpenUploadDialog(QStringList filePaths)
+{
+
+    UploadDialog* uDialog = new UploadDialog(m_cloudInterface, m_AppFolderId, this);
+    uDialog->setWindowTitle("Upload Files");
+    uDialog->AddToList(filePaths);
+    uDialog->exec();
+    UpdateFolderList();
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *e)
@@ -59,18 +115,15 @@ void MainWindow::dropEvent(QDropEvent *e)
 {
     QStringList pathList;
 
-    //Open Upload Window
-
     foreach (auto url, e->mimeData()->urls()) {
         pathList.append(url.toLocalFile());
-        //funzt
-        //MessageBoxA(nullptr,url.toLocalFile().toLocal8Bit().data(), "dropped", MB_OK);
-        //Open new Window with list of all files. Oder upload buttonen und dann fenster <- Dialog : "Upload, Cancel"
+
     }
 
     e->acceptProposedAction();
-}
 
+    OpenUploadDialog(pathList);
+}
 
 void MainWindow::parseJsonSecret(GoogleConfig& gConfig)
 {
@@ -121,4 +174,41 @@ void MainWindow::parseJsonSecret(GoogleConfig& gConfig)
 
 }
 
+void MainWindow::on_UploadButton_clicked()
+{
+    OpenUploadDialog(QStringList());
+}
 
+void MainWindow::on_actionQuit_triggered()
+{
+    QCoreApplication::quit();
+}
+
+void MainWindow::DeleteItem()
+{
+
+    for(int i = 0; i < m_listWidget->selectedItems().size(); ++i)
+    {
+        QListWidgetItem* item = m_listWidget->takeItem(m_listWidget->currentRow());
+        m_cloudInterface->DeleteFolder(item->statusTip(), true);
+        delete item;
+    }
+
+    UpdateFolderList();
+}
+
+void MainWindow::showContextMenu(const QPoint& pos)
+{
+    QPoint globalPos = m_listWidget->mapToGlobal(pos);
+
+    QMenu menu;
+    menu.addAction("Delete", this, &MainWindow::DeleteItem);
+    menu.exec(globalPos);
+}
+
+void MainWindow::on_RefreshButton_clicked()
+{
+
+    UpdateFolderList();
+
+}

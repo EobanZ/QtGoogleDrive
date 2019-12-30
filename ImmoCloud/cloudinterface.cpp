@@ -10,6 +10,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QEventLoop>
+#include <QProgressDialog>
 
 CloudInterface::CloudInterface(Authenticator* auth,QObject *parent): QObject(parent), m_authenticator(auth)
 {
@@ -103,9 +104,18 @@ void CloudInterface_GoogleDrive::UploadFiles(QStringList files, QString folder)
     if(!m_authenticator->isGranted())
         return; //TODO: emit abort
 
+    QProgressDialog prog("Uploading files", "cancel", 0, files.count(), nullptr);
+    prog.setCancelButton(nullptr);
+    prog.show();
+    prog.setMinimumWidth(200);
+    prog.setWindowModality(Qt::WindowModal);
+    int i = 0;
+
     foreach (auto path, files) {
         UploadFile(path, fId);
+        prog.setValue(++i);
     }
+
 }
 
 //Uploads a file to a specific folder. Use "root" for default folder
@@ -453,7 +463,8 @@ QList<QPair<QString,QString>> CloudInterface_GoogleDrive::GetAllChildFolders(QSt
         QUrl url(baseUrl + "/" + fileId);
 
         QUrlQuery query;
-        query.addQueryItem("fields", "appProperties,capabilities,contentHints,createdTime,description,explicitlyTrashed,fileExtension,folderColorRgb,fullFileExtension,headRevisionId,iconLink,id,imageMediaMetadata,isAppAuthorized,kind,lastModifyingUser,md5Checksum,mimeType,modifiedByMeTime,modifiedTime,name,originalFilename,ownedByMe,owners,parents,permissions,properties,quotaBytesUsed,shared,sharedWithMeTime,sharingUser,size,spaces,starred,thumbnailLink,trashed,version,videoMediaMetadata,viewedByMe,viewedByMeTime,viewersCanCopyContent,webContentLink,webViewLink,writersCanShare");
+        query.addQueryItem("fields", "id,name,parents");
+        //query.addQueryItem("fields", "appProperties,capabilities,contentHints,createdTime,description,explicitlyTrashed,fileExtension,folderColorRgb,fullFileExtension,headRevisionId,iconLink,id,imageMediaMetadata,isAppAuthorized,kind,lastModifyingUser,md5Checksum,mimeType,modifiedByMeTime,modifiedTime,name,originalFilename,ownedByMe,owners,parents,permissions,properties,quotaBytesUsed,shared,sharedWithMeTime,sharingUser,size,spaces,starred,thumbnailLink,trashed,version,videoMediaMetadata,viewedByMe,viewedByMeTime,viewersCanCopyContent,webContentLink,webViewLink,writersCanShare");
         url.setQuery(query);
 
         QNetworkRequest request(url);
@@ -622,6 +633,40 @@ QString CloudInterface_GoogleDrive::MakeOrGetShareLink(QString fileId)
     nManager->deleteLater();
 
     return link;
+
+}
+
+void CloudInterface_GoogleDrive::DeleteFolder(QString folder, bool isId)
+{
+    QString folderId;
+
+    if(!isId)
+    {
+        folderId = m_foldersSnapshot[folder];
+        if(folderId.isEmpty())
+        {
+            UpdateFoldersSnapshot();
+            folderId = m_foldersSnapshot[folder];
+            if(folderId.isEmpty())
+                return; //TODO: emit error
+        }
+
+
+    }
+    else
+        folderId = folder;
+
+    QNetworkAccessManager* nManager = new QNetworkAccessManager();
+    QNetworkRequest request(QUrl(QString("https://www.googleapis.com/drive/v3/files/%1").arg(folderId)));
+    request.setRawHeader("Authorization", ("Bearer " + m_authenticator->GetToken()).toUtf8());
+
+    QEventLoop loop;
+    QNetworkReply* reply = nManager->deleteResource(request);
+    reply->setParent(nManager);
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    nManager->deleteLater();
 
 }
 

@@ -19,15 +19,18 @@ SOURCES += \
     authenticator.cpp \
     cloudinterface.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    uploaddialog.cpp
 
 HEADERS += \
     authenticator.h \
     cloudinterface.h \
-    mainwindow.h
+    mainwindow.h \
+    uploaddialog.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    uploaddialog.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

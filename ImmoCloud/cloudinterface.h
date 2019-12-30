@@ -17,9 +17,10 @@ public:
     CloudInterface(QString clientID, QString ClientSecret, QObject* parent = nullptr);
     void Authorize();
     virtual void UploadFiles(QStringList filePaths, QString folderName) = 0; //Should search for foler. If not found create new and upload files there
-    virtual QString CreateFolder(QString folderName, QString parent) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
+    virtual QString CreateFolder(QString folderName, QString parentId) = 0; //Should search for parent folder and create a new folder as child. If not found create folder in App root folder
     virtual QList<QPair<QString,QString>> GetAllChildFolders(QString folderName) = 0; //Should return all the names and ids of the children folder.
     virtual QString MakeOrGetShareLink(QString fileId) = 0;
+    virtual void DeleteFolder(QString folder, bool isId) = 0;
 
 private:
 
@@ -66,6 +67,7 @@ public:
     virtual QString CreateFolder(QString folderName, QString parent) override;
     virtual QList<QPair<QString,QString>> GetAllChildFolders(QString folderName) override;
     virtual QString MakeOrGetShareLink(QString fileId) override;
+    virtual void DeleteFolder(QString folder, bool isId) override;
 
 private:
     void ResumeUploadFile(QString filePath, QString sessionLink, qint64 continuePosition);
@@ -76,7 +78,8 @@ private:
 
 private:
     QMap<QString, QString> m_foldersSnapshot;
-    //m_fileSnapshot?? for what?
+
+
 
 };
 
