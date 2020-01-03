@@ -17,7 +17,6 @@ Authenticator::Authenticator(QString clientID, QString clientSecret, QObject *pa
 
     connect(m_authFlow, &QOAuth2AuthorizationCodeFlow::granted,[=]()
     {
-        //MessageBoxA(nullptr, "granted event", "granted slot", MB_OK);
         emit OnSuccess();
         SaveToJson();
         m_replyHandler->deleteLater();

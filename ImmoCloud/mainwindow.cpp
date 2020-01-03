@@ -23,18 +23,15 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     setAcceptDrops(true);
     m_listWidget = ui->listWidget;
     m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-    //m_listWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
     GoogleConfig googleConfig;
     parseJsonSecret(googleConfig);
-
-
 
     m_cloudInterface = new CloudInterface_GoogleDrive(googleConfig.clientID, googleConfig.clientSecret, this);
     connect(m_cloudInterface, &CloudInterface_GoogleDrive::IsReady, [&](){
         //When authorized -> create root folder
 
-        QProgressDialog prog("Getting folder infos","cancel",0, 2, this);
+        QProgressDialog prog("Getting folder infos", nullptr, 0, 2, this); //Just for the user to see is smthing happening
         prog.show();
         prog.setWindowModality(Qt::WindowModal);
         prog.setValue(0);
@@ -45,7 +42,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         UpdateFolderList();
         prog.close();
     });
-    //TODO:Show loading window
+
     m_cloudInterface->Authorize();
 
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, &MainWindow::ListItemClicked);
@@ -64,7 +61,7 @@ void MainWindow::UpdateFolderList()
     prog.setModal(true);
     prog.show();
 
-    //Get folder in app folder in drive
+    //Get all folders in app-folder on drive
     QList<QPair<QString,QString>> folders = m_cloudInterface->GetAllChildFolders(m_AppName);
     m_listWidget->clear();
     for(auto& folder : folders)
@@ -127,7 +124,6 @@ void MainWindow::dropEvent(QDropEvent *e)
 
 void MainWindow::parseJsonSecret(GoogleConfig& gConfig)
 {
-    //Change this for different Cloud service. Better to do this in the constructor of eacht authenticator class, but i dont want to rewrite the who thing
     //Make sure everything needed to authenticate is available
     QString path = QDir::currentPath() + "/config/google_drive";
     QDir dir;
@@ -208,7 +204,5 @@ void MainWindow::showContextMenu(const QPoint& pos)
 
 void MainWindow::on_RefreshButton_clicked()
 {
-
     UpdateFolderList();
-
 }

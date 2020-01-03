@@ -84,9 +84,6 @@ void UploadDialog::on_buttonBox_accepted()
         return;
     }
 
-
-
-
     QStringList allPaths;
     for(int i(0); i < m_listWidgetFiles->count(); i++)
     {
@@ -96,6 +93,5 @@ void UploadDialog::on_buttonBox_accepted()
 
     QString folderID = m_interface->CreateFolder(newFolderName, m_rootFolderId);
     m_interface->UploadFiles(allPaths, folderID);
-
 
 }

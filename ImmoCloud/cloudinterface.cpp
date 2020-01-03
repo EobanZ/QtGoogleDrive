@@ -272,7 +272,6 @@ void CloudInterface_GoogleDrive::UploadFile(QString filePath, QString folder)
     }
 
     //else successfull
-    //TODO: emit successfull signal to close the blocking window
 
     qDebug() << "upload completed. Code: " << uploadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     //qDebug() << reply->rawHeaderPairs();
@@ -388,8 +387,6 @@ QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString par
     if(!result.isEmpty())
         return result;
 
-
-
     //3. if still not found create new folder
     QNetworkAccessManager* nManager = new QNetworkAccessManager();
     QNetworkRequest request(QUrl("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"));
@@ -431,7 +428,6 @@ QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString par
         result = id;
     }
 
-
     nManager->deleteLater();
 
     return result;
@@ -439,9 +435,6 @@ QString CloudInterface_GoogleDrive::CreateFolder(QString folderName, QString par
 
 QList<QPair<QString,QString>> CloudInterface_GoogleDrive::GetAllChildFolders(QString folderName)
 {
-    //1. make qery: "q" "'ImmoCloud' in parents;
-    //2. get the name frome json respnse and append in StringList
-    //3. return
     UpdateFoldersSnapshot();
 
     QList<QPair<QString,QString>> result;
@@ -498,95 +491,6 @@ QList<QPair<QString,QString>> CloudInterface_GoogleDrive::GetAllChildFolders(QSt
 QString CloudInterface_GoogleDrive::MakeOrGetShareLink(QString fileId)
 {
     QString link;
-    //TODO: maybe check if already shared. I dont know if the share link is a new one every time
-    //All possible fields:
-//    {
-//       "capabilities":{
-//          "canAddChildren":true,
-//          "canChangeCopyRequiresWriterPermission":false,
-//          "canChangeViewersCanCopyContent":false,
-//          "canComment":true,
-//          "canCopy":false,
-//          "canDelete":true,
-//          "canDownload":true,
-//          "canEdit":true,
-//          "canListChildren":true,
-//          "canModifyContent":true,
-//          "canMoveItemIntoTeamDrive":true,
-//          "canMoveItemOutOfDrive":true,
-//          "canReadRevisions":false,
-//          "canRemoveChildren":true,
-//          "canRename":true,
-//          "canShare":true,
-//          "canTrash":true,
-//          "canUntrash":true
-//       },
-//       "createdTime":"2019-11-27T08:47:05.586Z",
-//       "explicitlyTrashed":false,
-//       "folderColorRgb":"#8f8f8f",
-//       "iconLink":"https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.folder+shared",
-//       "id":"14KCyg4UAHPHRmR5k9cJIhInw1p652iVd",
-//       "isAppAuthorized":false,
-//       "kind":"drive#file",
-//       "lastModifyingUser":{
-//          "displayName":"Fabien Zwick",
-//          "emailAddress":"zwick.fabi@googlemail.com",
-//          "kind":"drive#user",
-//          "me":true,
-//          "permissionId":"16932818008497388934",
-//          "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64"
-//       },
-//       "mimeType":"application/vnd.google-apps.folder",
-//       "modifiedByMeTime":"2019-11-27T08:51:47.513Z",
-//       "modifiedTime":"2019-11-27T08:51:47.513Z",
-//       "name":"Bachelorarbeit",
-//       "ownedByMe":true,
-//       "owners":[
-//          {
-//             "displayName":"Fabien Zwick",
-//             "emailAddress":"zwick.fabi@googlemail.com",
-//             "kind":"drive#user",
-//             "me":true,
-//             "permissionId":"16932818008497388934",
-//             "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64"
-//          }
-//       ],
-//       "parents":[
-//          "0ANdRFCSIMzxDUk9PVA"
-//       ],
-//       "permissions":[
-//          {
-//             "allowFileDiscovery":false,
-//             "id":"anyoneWithLink",
-//             "kind":"drive#permission",
-//             "role":"reader",
-//             "type":"anyone"
-//          },
-//          {
-//             "deleted":false,
-//             "displayName":"Fabien Zwick",
-//             "emailAddress":"zwick.fabi@googlemail.com",
-//             "id":"16932818008497388934",
-//             "kind":"drive#permission",
-//             "photoLink":"https://lh3.googleusercontent.com/a-/AAuE7mALiTnKuCDLy2c7og5p9hXeS4ducK0oW1K3LHtE-Q=s64",
-//             "role":"owner",
-//             "type":"user"
-//          }
-//       ],
-//       "quotaBytesUsed":"0",
-//       "shared":true,
-//       "spaces":[
-//          "drive"
-//       ],
-//       "starred":false,
-//       "trashed":false,
-//       "version":"10",
-//       "viewedByMe":true,
-//       "viewedByMeTime":"2019-12-04T13:10:22.089Z",
-//       "viewersCanCopyContent":true,
-//       "webViewLink":"https://drive.google.com/drive/folders/14KCyg4UAHPHRmR5k9cJIhInw1p652iVd",
-//       "writersCanShare":true
-//    }
 
     //Make folder shared
     QNetworkAccessManager* nManager = new QNetworkAccessManager();
@@ -650,8 +554,6 @@ void CloudInterface_GoogleDrive::DeleteFolder(QString folder, bool isId)
             if(folderId.isEmpty())
                 return; //TODO: emit error
         }
-
-
     }
     else
         folderId = folder;
